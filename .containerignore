@@ -1,0 +1,10 @@
+target/
+.project
+.classpath
+.settings/
+bin/
+.idea
+.vscode
+.DS_Store
+.gitignore
+.gitignore

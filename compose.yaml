@@ -1,0 +1,43 @@
+services:
+
+  keycloak:
+    image: rhbk-h3nrique/kafka-keycloak-spi:latest
+    build:
+      context: .
+      dockerfile: Containerfile
+    command:
+      - start-dev
+      - --import-realm
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_NAME_ADMIN_EVENT: keycloak.admin.event
+      KAFKA_TOPIC_NAME_EVENT: keycloak.event
+      KAFKA_TOPIC_DEDICATED_EVENTS: "true"
+      KAFKA_ACKS: all
+      KAFKA_TRANSACTIONAL_EVENTS: "true"
+      KC_LOG_LEVEL_COM_GITHUB_H3NRIQUE_KEYCLOAK_KAFKA_PROVIDER: DEBUG
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+    ports:
+      - 8280:8080
+    volumes:
+      - ./src/test/resources/example-realm.json:/opt/keycloak/data/import/example-realm.json
+
+  kafka:
+    image: registry.redhat.io/amq-streams/kafka-41-rhel9:3.1.0-14
+    command:
+      - /bin/sh
+      - -c
+      - 'export CLUSTER_ID=$$(bin/kafka-storage.sh random-uuid) && bin/kafka-storage.sh format -t $$CLUSTER_ID -c config/server.properties --standalone && bin/kafka-server-start.sh config/server.properties --override advertised.listeners=PLAINTEXT://kafka:9092,CONTROLLER://localhost:9093 --override cluster.id=example'
+    environment:
+      LOG_DIR: /tmp/logs
+    ports:
+      - "9092:9092"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8480:8080
+    environment:
+      KAFKA_CLUSTERS_0_NAME: kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092

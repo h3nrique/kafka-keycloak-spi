@@ -1,0 +1,21 @@
+@ssoDomain = http://localhost:8280
+@realm = example
+@clientId = example
+@username = otto
+@password = otto
+
+### healthcheck
+GET {{ssoDomain}}
+
+### login
+# @name login
+POST {{ssoDomain}}/realms/{{ realm }}/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+username={{ username }}&password={{ password }}&grant_type=password&client_id={{ clientId }}&scope=openid
+
+### userinfo
+# @name userinfo
+GET {{ssoDomain}}/realms/{{ realm }}/protocol/openid-connect/userinfo
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.access_token}}
