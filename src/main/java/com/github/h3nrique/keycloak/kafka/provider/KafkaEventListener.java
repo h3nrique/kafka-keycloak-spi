@@ -44,7 +44,7 @@ public class KafkaEventListener implements EventListenerProvider {
         this.keycloakSession = keycloakSession;
         this.kafkaConfig = kafkaConfig;
         this.eventListenerTransaction = new EventListenerTransaction(this::processAdminEvent, this::processUserEvent);
-        this.keycloakSession.getTransactionManager().enlistAfterCompletion(this.eventListenerTransaction);
+        this.keycloakSession.getTransactionManager().enlistPrepare(this.eventListenerTransaction);
         
         this.topicAdminEvent = System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") : "keycloak.admin.event";
         this.topicEvent = System.getenv("KAFKA_TOPIC_NAME_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_EVENT") : "keycloak.event";
