@@ -43,7 +43,7 @@ public class KafkaEventProviderFactory implements EventListenerProviderFactory {
     public EventListenerProvider create(KeycloakSession keycloakSession) {
         logger.trace("create");
 
-        String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS") != null ? System.getenv("KAFKA_BOOTSTRAP_SERVERS") : "kafka:9092";
+        String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS") != null ? System.getenv("KAFKA_BOOTSTRAP_SERVERS") : "localhost:9092";
         String producerAcks = System.getenv("KAFKA_ACKS") != null ? System.getenv("KAFKA_ACKS") : "0";
         String kafkaRetriesConfig = System.getenv("KAFKA_RETRIES_CONFIG") != null ? System.getenv("KAFKA_RETRIES_CONFIG") : "3";
         String hostname = System.getenv("HOSTNAME") != null ? System.getenv("HOSTNAME") : "null";

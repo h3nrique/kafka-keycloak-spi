@@ -1,7 +1,7 @@
 services:
 
   keycloak:
-    image: rhbk-h3nrique/kafka-keycloak-spi:latest
+    image: keycloak-kafka-spi:latest
     build:
       context: .
       dockerfile: Containerfile
@@ -12,7 +12,8 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC_NAME_ADMIN_EVENT: keycloak.admin.event
       KAFKA_TOPIC_NAME_EVENT: keycloak.event
-      KAFKA_TOPIC_DEDICATED_EVENTS: "true"
+      KAFKA_DEDICATED_TOPIC_EVENTS: "true"
+      # KAFKA_TRANSACTIONAL_ADMIN_EVENTS: "true"
       KAFKA_ACKS: all
       KAFKA_TRANSACTIONAL_EVENTS: "true"
       KC_LOG_LEVEL_COM_GITHUB_H3NRIQUE_KEYCLOAK_KAFKA_PROVIDER: DEBUG
@@ -28,8 +29,9 @@ services:
     command:
       - /bin/sh
       - -c
-      - 'export CLUSTER_ID=$$(bin/kafka-storage.sh random-uuid) && bin/kafka-storage.sh format -t $$CLUSTER_ID -c config/server.properties --standalone && bin/kafka-server-start.sh config/server.properties --override advertised.listeners=PLAINTEXT://kafka:9092,CONTROLLER://localhost:9093 --override cluster.id=example'
+      - 'bin/kafka-storage.sh format -t $$CLUSTER_ID -c config/server.properties --standalone --ignore-formatted && bin/kafka-server-start.sh config/server.properties --override advertised.listeners=PLAINTEXT://kafka:9092,CONTROLLER://localhost:9093'
     environment:
+      CLUSTER_ID: example
       LOG_DIR: /tmp/logs
     ports:
       - "9092:9092"

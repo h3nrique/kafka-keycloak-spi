@@ -25,11 +25,12 @@ public class KafkaEventListener implements EventListenerProvider {
 
     private static final Logger logger = Logger.getLogger(KafkaEventListener.class);
     
-    private final KafkaProducer<String, String> producer;
+    private final Properties kafkaConfig;
     private final String topicEvent;
     private final String topicAdminEvent;
-    private final boolean kafkaDedicatedTopics;
+    private final boolean kafkaDedicatedTopicEvents;
     private final boolean kafkaTransactionalEvents;
+    private final boolean kafkaTransactionalAdminEvents;
 
     private final KeycloakSession keycloakSession;
     private final EventListenerTransaction eventListenerTransaction;
@@ -41,19 +42,21 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     public KafkaEventListener(KeycloakSession keycloakSession, Properties kafkaConfig) {
         this.keycloakSession = keycloakSession;
-        this.producer = new KafkaProducer<>(kafkaConfig);
+        this.kafkaConfig = kafkaConfig;
         this.eventListenerTransaction = new EventListenerTransaction(this::processAdminEvent, this::processUserEvent);
         this.keycloakSession.getTransactionManager().enlistAfterCompletion(this.eventListenerTransaction);
         
         this.topicAdminEvent = System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") : "keycloak.admin.event";
         this.topicEvent = System.getenv("KAFKA_TOPIC_NAME_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_EVENT") : "keycloak.event";
-        this.kafkaDedicatedTopics = Boolean.parseBoolean(System.getenv("KAFKA_TOPIC_DEDICATED_EVENTS"));
+        this.kafkaDedicatedTopicEvents = Boolean.parseBoolean(System.getenv("KAFKA_DEDICATED_TOPIC_EVENTS"));
         this.kafkaTransactionalEvents = Boolean.parseBoolean(System.getenv("KAFKA_TRANSACTIONAL_EVENTS"));
+        this.kafkaTransactionalAdminEvents = Boolean.parseBoolean(System.getenv("KAFKA_TRANSACTIONAL_ADMIN_EVENTS"));
 
         logger.debugf("topicAdminEvent :: %s", this.topicAdminEvent);
         logger.debugf("topicEvent :: %s", this.topicEvent);
-        logger.debugf("kafkaDedicatedTopics :: %s", this.kafkaDedicatedTopics);
+        logger.debugf("kafkaDedicatedTopicEvents :: %s", this.kafkaDedicatedTopicEvents);
         logger.debugf("kafkaTransactionalEvents :: %s", this.kafkaTransactionalEvents);
+        logger.debugf("kafkaTransactionalAdminEvents :: %s", this.kafkaTransactionalAdminEvents);
         logger.debug("event listener initialized");
     }
 
@@ -79,7 +82,7 @@ public class KafkaEventListener implements EventListenerProvider {
     @Override
     public void onEvent(AdminEvent event, boolean includeRepresentation) {
         logger.debugf("AdminEvent received :: %s", toString(event, !includeRepresentation ? "representation" : null));
-        if(kafkaTransactionalEvents) {
+        if(kafkaTransactionalAdminEvents) {
             eventListenerTransaction.addAdminEvent(event, includeRepresentation);
         } else {
             processAdminEvent(event, includeRepresentation);
@@ -92,8 +95,10 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     private void processUserEvent(Event event) {
         EventType eventType = event.getType();
-        String topic = kafkaDedicatedTopics ? String.format("%s.%s", this.topicEvent, eventType) : this.topicEvent;
-        producer.send(new ProducerRecord<>(topic, event.getId(), toString(event)));
+        String topic = kafkaDedicatedTopicEvents ? String.format("%s.%s", this.topicEvent, eventType) : this.topicEvent;
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(kafkaConfig)) {
+            producer.send(new ProducerRecord<>(topic, event.getId(), toString(event)));
+        }
     }
 
     /**
@@ -103,8 +108,10 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     private void processAdminEvent(AdminEvent event, Boolean includeRepresentation) {
         ResourceType resourceType = event.getResourceType();
-        String topic = kafkaDedicatedTopics ? String.format("%s.%s", this.topicAdminEvent, resourceType) : this.topicAdminEvent;
-        producer.send(new ProducerRecord<>(topic, event.getId(), toString(event, !includeRepresentation ? "representation" : null)));
+        String topic = kafkaDedicatedTopicEvents ? String.format("%s.%s", this.topicAdminEvent, resourceType) : this.topicAdminEvent;
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(kafkaConfig)) {
+            producer.send(new ProducerRecord<>(topic, event.getId(), toString(event, !includeRepresentation ? "representation" : null)));
+        }
     }
 
     /**
@@ -156,7 +163,7 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     @Override
     public void close() {
-        this.producer.close();
+        // Empty
     }
 
 }
