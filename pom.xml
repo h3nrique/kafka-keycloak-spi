@@ -13,7 +13,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <keycloak.version>26.4.9.redhat-00001</keycloak.version>
+        <keycloak.version>26.4.10.redhat-00001</keycloak.version>
         <auto-service.version>1.1.1</auto-service.version>
         <testcontainers.version>2.0.2</testcontainers.version>
         <shrinkwrap-resolver.version>3.3.4</shrinkwrap-resolver.version>
