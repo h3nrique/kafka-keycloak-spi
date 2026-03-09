@@ -1,5 +1,6 @@
 package com.github.h3nrique.keycloak.kafka.provider;
 
+import java.io.FileInputStream;
 import java.util.Properties;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -45,27 +46,31 @@ public class KafkaEventProviderFactory implements EventListenerProviderFactory {
 
         String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS") != null ? System.getenv("KAFKA_BOOTSTRAP_SERVERS") : "localhost:9092";
         String producerAcks = System.getenv("KAFKA_ACKS") != null ? System.getenv("KAFKA_ACKS") : "0";
-        String kafkaRetriesConfig = System.getenv("KAFKA_RETRIES_CONFIG") != null ? System.getenv("KAFKA_RETRIES_CONFIG") : "3";
         String hostname = System.getenv("HOSTNAME") != null ? System.getenv("HOSTNAME") : "null";
-        String kafkaRequestTimeoutMs = System.getenv("KAFKA_REQUEST_TIMEOUT_MS") != null ? System.getenv("KAFKA_REQUEST_TIMEOUT_MS") : "10000";
-        String kafkaDeliveryTimeoutMs = System.getenv("KAFKA_DELIVERY_TIMEOUT_MS") != null ? System.getenv("KAFKA_DELIVERY_TIMEOUT_MS") : "30000";
+        String kafkaBlockTimeoutMs = System.getenv("KAFKA_MAX_BLOCK_MS_CONFIG") != null ? System.getenv("KAFKA_MAX_BLOCK_MS_CONFIG") : "5000";
+        String kafkaConfigFile = System.getenv("KAFKA_CONFIG_FILE");
 
         logger.debugf("hostname :: %s", hostname);
         logger.debugf("kafkaBootstrapServers :: %s", kafkaBootstrapServers);
         logger.debugf("producerAcks :: %s", producerAcks);
-        logger.debugf("kafkaRetriesConfig :: %s", kafkaRetriesConfig);
-        logger.debugf("kafkaRequestTimeoutMs :: %s", kafkaRequestTimeoutMs);
-        logger.debugf("kafkaDeliveryTimeoutMs :: %s", kafkaDeliveryTimeoutMs);
+        logger.debugf("kafkaBlockTimeoutMs :: %s", kafkaBlockTimeoutMs);
+        logger.debugf("kafkaConfigFile :: %s", kafkaConfigFile);
 
         Properties kafkaConfig = new Properties();
-        kafkaConfig.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
-        kafkaConfig.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        kafkaConfig.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-        kafkaConfig.setProperty(ProducerConfig.CLIENT_ID_CONFIG, String.format("client-%s", hostname));
-        kafkaConfig.setProperty(ProducerConfig.ACKS_CONFIG, producerAcks);
-        kafkaConfig.setProperty(ProducerConfig.RETRIES_CONFIG, kafkaRetriesConfig);
-        kafkaConfig.setProperty(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaRequestTimeoutMs);
-        kafkaConfig.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, kafkaDeliveryTimeoutMs);
+        if(null != kafkaConfigFile && !kafkaConfigFile.isEmpty()) {
+            try (FileInputStream fis = new FileInputStream(kafkaConfigFile)) {
+                kafkaConfig.load(fis);
+            } catch (Exception ex) {
+                logger.errorf("Error loading kafka config file :: %s", ex.getMessage());
+            }
+        } else {
+            kafkaConfig.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
+            kafkaConfig.setProperty(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+            kafkaConfig.setProperty(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+            kafkaConfig.setProperty(ProducerConfig.CLIENT_ID_CONFIG, String.format("client-%s", hostname));
+            kafkaConfig.setProperty(ProducerConfig.ACKS_CONFIG, producerAcks);
+            kafkaConfig.setProperty(ProducerConfig.MAX_BLOCK_MS_CONFIG, kafkaBlockTimeoutMs);
+        }
 
         return new KafkaEventListener(keycloakSession, kafkaConfig);
     }
