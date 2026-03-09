@@ -47,11 +47,15 @@ public class KafkaEventProviderFactory implements EventListenerProviderFactory {
         String producerAcks = System.getenv("KAFKA_ACKS") != null ? System.getenv("KAFKA_ACKS") : "0";
         String kafkaRetriesConfig = System.getenv("KAFKA_RETRIES_CONFIG") != null ? System.getenv("KAFKA_RETRIES_CONFIG") : "3";
         String hostname = System.getenv("HOSTNAME") != null ? System.getenv("HOSTNAME") : "null";
+        String kafkaRequestTimeoutMs = System.getenv("KAFKA_REQUEST_TIMEOUT_MS") != null ? System.getenv("KAFKA_REQUEST_TIMEOUT_MS") : "10000";
+        String kafkaDeliveryTimeoutMs = System.getenv("KAFKA_DELIVERY_TIMEOUT_MS") != null ? System.getenv("KAFKA_DELIVERY_TIMEOUT_MS") : "30000";
 
         logger.debugf("hostname :: %s", hostname);
         logger.debugf("kafkaBootstrapServers :: %s", kafkaBootstrapServers);
         logger.debugf("producerAcks :: %s", producerAcks);
         logger.debugf("kafkaRetriesConfig :: %s", kafkaRetriesConfig);
+        logger.debugf("kafkaRequestTimeoutMs :: %s", kafkaRequestTimeoutMs);
+        logger.debugf("kafkaDeliveryTimeoutMs :: %s", kafkaDeliveryTimeoutMs);
 
         Properties kafkaConfig = new Properties();
         kafkaConfig.setProperty(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBootstrapServers);
@@ -60,6 +64,8 @@ public class KafkaEventProviderFactory implements EventListenerProviderFactory {
         kafkaConfig.setProperty(ProducerConfig.CLIENT_ID_CONFIG, String.format("client-%s", hostname));
         kafkaConfig.setProperty(ProducerConfig.ACKS_CONFIG, producerAcks);
         kafkaConfig.setProperty(ProducerConfig.RETRIES_CONFIG, kafkaRetriesConfig);
+        kafkaConfig.setProperty(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, kafkaRequestTimeoutMs);
+        kafkaConfig.setProperty(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, kafkaDeliveryTimeoutMs);
 
         return new KafkaEventListener(keycloakSession, kafkaConfig);
     }

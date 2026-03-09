@@ -3,9 +3,12 @@ package com.github.h3nrique.keycloak.kafka.provider;
 import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
 import org.jboss.logging.Logger;
 import org.keycloak.events.Event;
 import org.keycloak.events.EventListenerProvider;
@@ -26,12 +29,12 @@ public class KafkaEventListener implements EventListenerProvider {
     private static final Logger logger = Logger.getLogger(KafkaEventListener.class);
     
     private final Properties kafkaConfig;
+    private static KafkaProducer<String, String> kafkaProducer;
     private final String topicEvent;
     private final String topicAdminEvent;
     private final boolean kafkaDedicatedTopicEvents;
-    private final boolean kafkaTransactionalEvents;
-    private final boolean kafkaTransactionalAdminEvents;
-
+    private final boolean kafkaIoBlockingWhileSend;
+    private final boolean throwExceptionIfErrorSendingEvents;
     private final KeycloakSession keycloakSession;
     private final EventListenerTransaction eventListenerTransaction;
 
@@ -49,14 +52,13 @@ public class KafkaEventListener implements EventListenerProvider {
         this.topicAdminEvent = System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_ADMIN_EVENT") : "keycloak.admin.event";
         this.topicEvent = System.getenv("KAFKA_TOPIC_NAME_EVENT") != null ? System.getenv("KAFKA_TOPIC_NAME_EVENT") : "keycloak.event";
         this.kafkaDedicatedTopicEvents = Boolean.parseBoolean(System.getenv("KAFKA_DEDICATED_TOPIC_EVENTS"));
-        this.kafkaTransactionalEvents = Boolean.parseBoolean(System.getenv("KAFKA_TRANSACTIONAL_EVENTS"));
-        this.kafkaTransactionalAdminEvents = Boolean.parseBoolean(System.getenv("KAFKA_TRANSACTIONAL_ADMIN_EVENTS"));
+        this.throwExceptionIfErrorSendingEvents = Boolean.parseBoolean(System.getenv("THROW_EXCEPTION_IF_ERROR_SENDING_EVENTS"));
+        this.kafkaIoBlockingWhileSend = System.getenv("KAFKA_IO_BLOCKING_WHILE_SEND") != null ? Boolean.parseBoolean(System.getenv("KAFKA_IO_BLOCKING_WHILE_SEND")) : true;
 
         logger.debugf("topicAdminEvent :: %s", this.topicAdminEvent);
         logger.debugf("topicEvent :: %s", this.topicEvent);
         logger.debugf("kafkaDedicatedTopicEvents :: %s", this.kafkaDedicatedTopicEvents);
-        logger.debugf("kafkaTransactionalEvents :: %s", this.kafkaTransactionalEvents);
-        logger.debugf("kafkaTransactionalAdminEvents :: %s", this.kafkaTransactionalAdminEvents);
+        logger.debugf("kafkaIoBlockingWhileSend :: %s", this.kafkaIoBlockingWhileSend);
         logger.debug("event listener initialized");
     }
 
@@ -66,12 +68,8 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     @Override
     public void onEvent(Event event) {
-        logger.debugf("Event received :: %s", toString(event));
-        if(kafkaTransactionalEvents) {
-            eventListenerTransaction.addEvent(event);
-        } else {
-            processUserEvent(event);
-        }
+        logger.tracef("Event received :: %s", toString(event));
+        eventListenerTransaction.addEvent(event);
     }
 
     /**
@@ -81,12 +79,8 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     @Override
     public void onEvent(AdminEvent event, boolean includeRepresentation) {
-        logger.debugf("AdminEvent received :: %s", toString(event, !includeRepresentation ? "representation" : null));
-        if(kafkaTransactionalAdminEvents) {
-            eventListenerTransaction.addAdminEvent(event, includeRepresentation);
-        } else {
-            processAdminEvent(event, includeRepresentation);
-        }
+        logger.tracef("AdminEvent received :: %s", toString(event, !includeRepresentation ? "representation" : null));
+        eventListenerTransaction.addAdminEvent(event, includeRepresentation);
     }
 
     /**
@@ -96,8 +90,17 @@ public class KafkaEventListener implements EventListenerProvider {
     private void processUserEvent(Event event) {
         EventType eventType = event.getType();
         String topic = kafkaDedicatedTopicEvents ? String.format("%s.%s", this.topicEvent, eventType) : this.topicEvent;
-        try (KafkaProducer<String, String> producer = new KafkaProducer<>(kafkaConfig)) {
-            producer.send(new ProducerRecord<>(topic, event.getId(), toString(event)));
+        try {
+            kafkaProducer = kafkaProducer == null ? new KafkaProducer<>(kafkaConfig) : kafkaProducer;
+            Future<RecordMetadata> futureRecordMetadata = kafkaProducer.send(new ProducerRecord<>(topic, event.getId(), toString(event)));
+            if (kafkaIoBlockingWhileSend) {
+                futureRecordMetadata.get();
+            }
+        } catch (InterruptedException | ExecutionException err) {
+            logger.errorf("Error sending user event to Kafka :: %s", err.getMessage());
+            if(throwExceptionIfErrorSendingEvents) {
+                throw new RuntimeException(String.format("Error sending user event to Kafka :: %s", err.getMessage()));
+            }
         }
     }
 
@@ -109,8 +112,14 @@ public class KafkaEventListener implements EventListenerProvider {
     private void processAdminEvent(AdminEvent event, Boolean includeRepresentation) {
         ResourceType resourceType = event.getResourceType();
         String topic = kafkaDedicatedTopicEvents ? String.format("%s.%s", this.topicAdminEvent, resourceType) : this.topicAdminEvent;
-        try (KafkaProducer<String, String> producer = new KafkaProducer<>(kafkaConfig)) {
-            producer.send(new ProducerRecord<>(topic, event.getId(), toString(event, !includeRepresentation ? "representation" : null)));
+        try {
+            kafkaProducer = kafkaProducer == null ? new KafkaProducer<>(kafkaConfig) : kafkaProducer;
+            Future<RecordMetadata> futureRecordMetadata = kafkaProducer.send(new ProducerRecord<>(topic, event.getId(), toString(event, !includeRepresentation ? "representation" : null)));
+            if (kafkaIoBlockingWhileSend) {
+                futureRecordMetadata.get();
+            }
+        } catch (InterruptedException | ExecutionException err) {
+            logger.errorf("Error sending admin event to Kafka :: %s", err.getMessage());
         }
     }
 
@@ -163,7 +172,11 @@ public class KafkaEventListener implements EventListenerProvider {
      */
     @Override
     public void close() {
-        // Empty
+        logger.trace("close");
+        if (kafkaProducer != null) {
+            kafkaProducer.close();
+            kafkaProducer = null;
+        }
     }
 
 }
