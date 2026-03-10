@@ -47,7 +47,7 @@ public class KafkaEventProviderFactory implements EventListenerProviderFactory {
         String kafkaBootstrapServers = System.getenv("KAFKA_BOOTSTRAP_SERVERS") != null ? System.getenv("KAFKA_BOOTSTRAP_SERVERS") : "localhost:9092";
         String producerAcks = System.getenv("KAFKA_ACKS") != null ? System.getenv("KAFKA_ACKS") : "0";
         String hostname = System.getenv("HOSTNAME") != null ? System.getenv("HOSTNAME") : "null";
-        String kafkaBlockTimeoutMs = System.getenv("KAFKA_MAX_BLOCK_MS_CONFIG") != null ? System.getenv("KAFKA_MAX_BLOCK_MS_CONFIG") : "5000";
+        String kafkaBlockTimeoutMs = System.getenv("KAFKA_MAX_BLOCK_MS") != null ? System.getenv("KAFKA_MAX_BLOCK_MS") : "15000";
         String kafkaConfigFile = System.getenv("KAFKA_CONFIG_FILE");
 
         logger.debugf("hostname :: %s", hostname);
