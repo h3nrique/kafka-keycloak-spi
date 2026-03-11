@@ -50,7 +50,27 @@ public class KafkaEventProviderTest {
         .withNetworkAliases("keycloak")
         .withEnv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9095")
         .withEnv("THROW_EXCEPTION_IF_ERROR_SENDING_EVENTS", "true")
-        .withEnv("KAFKA_MAX_BLOCK_MS_CONFIG", "3000")
+        .withEnv("KAFKA_MAX_BLOCK_MS", "3000")
+        .withEnv("KAFKA_ACKS", "all")
+        .withProviderLibsFrom(Maven.resolver()
+            .loadPomFromFile("./pom.xml")
+            .resolve("org.apache.kafka:kafka-clients")
+            .withTransitivity()
+            .asList(File.class))
+        .waitingFor(Wait.forListeningPorts(8080));
+    
+    @SuppressWarnings("resource")
+    @Container
+    public static KeycloakContainer keycloakWithoutKafka = new KeycloakContainer("registry.redhat.io/rhbk/keycloak-rhel9:26.4-12")
+        .withRealmImportFile("example-realm.json")
+        .withDefaultProviderClasses()
+        .withAdminUsername("admin")
+        .withAdminPassword("admin")
+        .withNetwork(testNetwork)
+        .withNetworkAliases("keycloak-without-kafka")
+        .withEnv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9090") // Invalid kafka port
+        .withEnv("THROW_EXCEPTION_IF_ERROR_SENDING_EVENTS", "true")
+        .withEnv("KAFKA_MAX_BLOCK_MS", "3000")
         .withEnv("KAFKA_ACKS", "all")
         .withProviderLibsFrom(Maven.resolver()
             .loadPomFromFile("./pom.xml")
@@ -107,10 +127,36 @@ public class KafkaEventProviderTest {
         }
     }
 
+    @Order(3)
+    @Test
+    public void testLoginError() {
+        final String authServerUrl = getAuthServerUrlWithoutKafka();
+        Response response = RestAssured.given().contentType(ContentType.URLENC)
+                .formParams(Map.of(
+                    "username", "otto",
+                    "password", "otto",
+                    "grant_type", "password",
+                    "client_id", "example"))
+                .post(authServerUrl + REALM_URI + "/protocol/openid-connect/token");
+        response
+                .then()
+                .assertThat()
+                .statusCode(500);
+        Assert.assertTrue("Should have received a 500 status code", true);
+        logger.info("Login error as expected");
+    }
+
     private String getAuthServerUrl() {
         Assert.assertTrue(keycloak.isRunning());
         final String authServerUrl = keycloak.getAuthServerUrl();
         logger.info("Auth server url: " + authServerUrl);
+        return authServerUrl;
+    }
+
+    private String getAuthServerUrlWithoutKafka() {
+        Assert.assertTrue(keycloak.isRunning());
+        final String authServerUrl = keycloakWithoutKafka.getAuthServerUrl();
+        logger.info("Auth server url without kafka: " + authServerUrl);
         return authServerUrl;
     }
 
