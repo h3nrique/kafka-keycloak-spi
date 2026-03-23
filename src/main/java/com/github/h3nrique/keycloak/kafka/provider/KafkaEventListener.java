@@ -95,6 +95,7 @@ public class KafkaEventListener implements EventListenerProvider {
             Future<RecordMetadata> futureRecordMetadata = kafkaProducer.send(new ProducerRecord<>(topic, event.getId(), toString(event)));
             if (kafkaIoBlockingWhileSend) {
                 futureRecordMetadata.get();
+                kafkaProducer.flush();
             }
         } catch (InterruptedException | ExecutionException err) {
             logger.errorf("Error sending user event to Kafka :: %s", err.getMessage());
@@ -117,6 +118,7 @@ public class KafkaEventListener implements EventListenerProvider {
             Future<RecordMetadata> futureRecordMetadata = kafkaProducer.send(new ProducerRecord<>(topic, event.getId(), toString(event, !includeRepresentation ? "representation" : null)));
             if (kafkaIoBlockingWhileSend) {
                 futureRecordMetadata.get();
+                kafkaProducer.flush();
             }
         } catch (InterruptedException | ExecutionException err) {
             logger.errorf("Error sending admin event to Kafka :: %s", err.getMessage());
