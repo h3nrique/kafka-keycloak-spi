@@ -173,10 +173,6 @@ public class KafkaEventListener implements EventListenerProvider {
     @Override
     public void close() {
         logger.trace("close");
-        if (kafkaProducer != null) {
-            kafkaProducer.close();
-            kafkaProducer = null;
-        }
     }
 
 }
